@@ -120,7 +120,7 @@
                 </div>
 
                 <button onclick="startQRLoginFlow()" class="w-full bg-white border border-slate-200 text-slate-600 p-3 rounded-xl hover:bg-slate-50 flex items-center justify-center gap-3 transition-all font-bold text-xs">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1-1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
                     Acessar via QR Code
                 </button>
                 
@@ -205,12 +205,12 @@
                 <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
 
-            <div class="text-center mb-12">
+            <div id="plans-header" class="text-center mb-12">
                 <h3 class="text-4xl font-black tracking-tight mb-4 text-slate-900">Evolua sua saúde</h3>
                 <p class="text-slate-500 font-medium">Escolha o plano ideal para suas necessidades.</p>
             </div>
 
-            <div class="flex flex-col items-center mb-12">
+            <div id="period-area" class="flex flex-col items-center mb-12">
                 <div id="period-selector" class="switch-toggle" onclick="toggleBilling()">
                     <div class="slider"></div>
                     <span id="label-anual" class="active">Anual <em class="not-italic text-[9px] text-green-600 ml-1">-20%</em></span>
@@ -259,9 +259,13 @@
                 </div>
             </div>
 
-            <div id="checkout-container" class="hidden mt-8 min-h-[400px]">
-                <div id="checkout"></div>
-                <button onclick="hideCheckout()" class="mt-4 w-full text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-red-500 transition-colors">Cancelar e voltar aos planos</button>
+            <div id="checkout-container" class="hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div class="text-center mb-8">
+                    <h3 class="text-2xl font-black text-slate-900">Finalizar Assinatura</h3>
+                    <p class="text-slate-500 text-sm">Pagamento seguro processado pelo Stripe.</p>
+                </div>
+                <div id="checkout" class="min-h-[450px]"></div>
+                <button onclick="hideCheckout()" class="mt-8 w-full text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-red-500 transition-colors">Voltar aos planos</button>
             </div>
         </div>
     </div>
@@ -354,6 +358,7 @@
 
     <script>
         const API_URL = 'https://doc-interpret-926187447831.europe-west1.run.app';
+        // Inicialização do Stripe com a sua Public Key
         const stripe = Stripe('pk_test_51SwTKe9JbbIHrSR1EC127ttxDqR0HBkTNR0wuTxWolqvIS3eadY4rPHPfRMi1A4JZHePfgxVoElKS0Iy2yx8hX1200LiqJrUKw');
         
         let token = localStorage.getItem('token');
@@ -365,7 +370,7 @@
         let currentAnalysisRawText = "";
         let pendingDeleteId = null;
         let currentBilling = 'anual'; 
-        let stripeEmbeddedCheckout = null;
+        let checkoutInstance = null; // Instância do embedded checkout
 
         const loadingPhrases = [
             "Extraindo dados do laudo...",
@@ -459,36 +464,37 @@
             document.getElementById('price-pro').innerText = currentBilling === 'anual' ? 'R$ 59' : 'R$ 79';
         }
 
+        // Carrega planos e verifica o estado atual do usuário
         async function openPlansModal() {
-            hideCheckout(); // Garante que começa na lista de planos
+            hideCheckout(); // Garante que volta para a lista de planos
             try {
                 const res = await fetch(`${API_URL}/api/subscription`, { headers: { 'Authorization': `Bearer ${token}` } });
                 const data = await res.json();
                 
                 if (res.status === 403) {
-                    return notify(data.error || 'Faça a verificação da sua conta pelo email antes de continuar', 'error');
+                    return notify(data.error || 'Verifique sua conta primeiro.', 'error');
                 }
 
-                const rank = data.subscription_plan || 0;
-                [0, 1, 2].forEach(level => {
-                    const btn = document.getElementById(`btn-plan-${level}`);
-                    if (level === rank) {
-                        btn.disabled = true; btn.innerText = "Plano Atual";
-                        btn.className = "w-full py-5 rounded-2xl font-black text-[10px] uppercase bg-slate-100 text-slate-400";
-                        if (btn.onclick) btn.onclick = null;
+                const currentRank = data.subscription_plan || 0;
+                [0, 1, 2].forEach(lvl => {
+                    const btn = document.getElementById(`btn-plan-${lvl}`);
+                    if (!btn) return;
+                    if (lvl === currentRank) {
+                        btn.disabled = true;
+                        btn.innerText = "Plano Atual";
+                        btn.className = "w-full py-5 rounded-2xl font-black text-[10px] uppercase bg-slate-100 text-slate-400 cursor-default";
                     } else {
-                        btn.disabled = false; btn.innerText = level === 0 ? "Selecionar" : (level === 2 ? "Assinar Pro" : "Começar agora");
-                        // Resetar classe caso tenha sido alterada pelo estado disabled
-                        if (level === 1) btn.className = "w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-blue-600 text-white shadow-lg hover:bg-blue-700 hover:scale-105 transition-all";
-                        if (level === 2) btn.className = "w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-white text-slate-900 hover:scale-105 transition-all";
+                        btn.disabled = false;
+                        btn.innerText = lvl === 2 ? "Assinar Pro" : (lvl === 0 ? "Selecionar" : "Começar agora");
+                        btn.className = lvl === 2 ? "w-full py-5 rounded-2xl font-black text-[10px] uppercase bg-white text-slate-900 hover:scale-105 transition-all" : "w-full py-5 rounded-2xl font-black text-[10px] uppercase bg-blue-600 text-white shadow-lg hover:bg-blue-700 hover:scale-105 transition-all";
                     }
                 });
                 openModal('plans-modal');
             } catch (err) { notify('Erro ao carregar planos', 'error'); }
         }
 
-        // --- NOVA LÓGICA DE INSCRIÇÃO STRIPE ---
-        
+        // --- Lógica de Checkout Stripe ---
+
         async function handleSubscribe(planId) {
             const interval = currentBilling === 'anual' ? 'year' : 'month';
             const btn = document.getElementById(`btn-plan-${planId}`);
@@ -504,23 +510,23 @@
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({ plan: planId, interval: interval })
+                    body: JSON.stringify({ 
+                        plan: parseInt(planId), 
+                        interval: interval 
+                    })
                 });
 
                 const data = await res.json();
 
-                if (!res.ok) throw new Error(data.error || 'Erro ao processar assinatura');
+                if (!res.ok) throw new Error(data.error || 'Erro na requisição');
 
-                // Caso 1: Upgrade imediato (sem checkout)
-                if (data.subscription_plan) {
-                    notify(data.message, 'success');
-                    openPlansModal(); // Atualiza a UI
-                    return;
-                }
-
-                // Caso 2: Abrir Embedded Checkout
+                // Se retornar um clientSecret, abre o checkout
                 if (data.clientSecret) {
-                    showCheckout(data.clientSecret);
+                    initStripeCheckout(data.clientSecret);
+                } else if (data.subscription_plan) {
+                    // Upgrade direto sem novo checkout
+                    notify(data.message, 'success');
+                    openPlansModal();
                 }
 
             } catch (err) {
@@ -531,28 +537,43 @@
             }
         }
 
-        async function showCheckout(clientSecret) {
+        async function initStripeCheckout(clientSecret) {
+            // Esconde lista e mostra container de checkout
             document.getElementById('plans-grid').classList.add('hidden');
-            document.getElementById('period-selector').classList.add('hidden');
+            document.getElementById('plans-header').classList.add('hidden');
+            document.getElementById('period-area').classList.add('hidden');
             document.getElementById('checkout-container').classList.remove('hidden');
 
-            if (stripeEmbeddedCheckout) stripeEmbeddedCheckout.destroy();
+            // Limpa o container antes de montar
+            const checkoutDiv = document.getElementById('checkout');
+            checkoutDiv.innerHTML = "";
 
-            stripeEmbeddedCheckout = await stripe.initEmbeddedCheckout({ clientSecret });
-            stripeEmbeddedCheckout.mount('#checkout');
+            if (checkoutInstance) {
+                checkoutInstance.destroy();
+            }
+
+            try {
+                checkoutInstance = await stripe.initEmbeddedCheckout({ clientSecret });
+                checkoutInstance.mount('#checkout');
+            } catch (e) {
+                notify("Erro ao inicializar checkout: " + e.message, "error");
+                hideCheckout();
+            }
         }
 
         function hideCheckout() {
             document.getElementById('plans-grid').classList.remove('hidden');
-            document.getElementById('period-selector').classList.remove('hidden');
+            document.getElementById('plans-header').classList.remove('hidden');
+            document.getElementById('period-area').classList.remove('hidden');
             document.getElementById('checkout-container').classList.add('hidden');
-            if (stripeEmbeddedCheckout) {
-                stripeEmbeddedCheckout.destroy();
-                stripeEmbeddedCheckout = null;
+            
+            if (checkoutInstance) {
+                checkoutInstance.destroy();
+                checkoutInstance = null;
             }
         }
 
-        // --- FIM DA LÓGICA STRIPE ---
+        // --- Fim Checkout Stripe ---
 
         function showDashboard() {
             document.getElementById('auth-screen').classList.add('hidden');
@@ -567,7 +588,7 @@
                 const data = await res.json();
                 
                 if (res.status === 403) {
-                    notify(data.error || 'Faça a verificação da sua conta pelo email antes de continuar', 'error');
+                    notify(data.error || 'Verifique sua conta.', 'error');
                     return;
                 }
 
@@ -627,9 +648,7 @@
             const name = document.getElementById('new-doc-name').value;
             const btn = document.getElementById('start-ia-btn');
             
-            if (!name || selectedFiles.length === 0) {
-                return notify('Preencha o nome e anexe pelo menos uma imagem', 'error');
-            }
+            if (!name || selectedFiles.length === 0) return notify('Nome e Imagem obrigatórios', 'error');
 
             btn.disabled = true;
             btn.innerText = "Convertendo...";
@@ -652,15 +671,13 @@
 
                 if (response.status === 403) {
                     const errorData = await response.json();
-                    notify(errorData.error || 'Faça a verificação da sua conta pelo email antes de continuar', 'error');
+                    notify(errorData.error || 'Verifique sua conta.', 'error');
                     btn.disabled = false;
-                    btn.innerText = "Analisar com IA";
                     return;
                 }
 
                 closeModal('upload-modal');
-                notify('Iniciando processamento...', 'info');
-                
+                notify('Processando...', 'info');
                 loadDocuments();
 
                 const reader = response.body.getReader();
@@ -682,7 +699,7 @@
                     }
                 }
             } catch (err) { 
-                notify('Erro ao processar o envio', 'error'); 
+                notify('Erro no envio', 'error'); 
                 loadDocuments(); 
             } finally {
                 btn.disabled = false;
@@ -695,8 +712,7 @@
             const card = document.getElementById(`doc-${docId}`);
             if (container) {
                 card.classList.remove('shimmer');
-                container.innerHTML = `<button onclick="viewAnalysis('${docId}')" class="w-full bg-slate-900 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg scale-90 animate-in zoom-in fill-mode-forwards">Ver Relatório IA</button>`;
-                setTimeout(() => container.firstChild.classList.remove('scale-90'), 50);
+                container.innerHTML = `<button onclick="viewAnalysis('${docId}')" class="w-full bg-slate-900 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg scale-90">Ver Relatório IA</button>`;
             } else {
                 loadDocuments();
             }
@@ -771,11 +787,7 @@
         async function viewAnalysis(id) {
             const res = await fetch(`${API_URL}/api/documents/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
             const data = await res.json();
-            
-            if (res.status === 403) {
-                return notify(data.error || 'Verifique sua conta antes de visualizar a análise', 'error');
-            }
-
+            if (res.status === 403) return notify('Verifique sua conta.', 'error');
             currentAnalysisRawText = data.documento.analise;
             document.getElementById('analysis-title').innerText = data.documento.nome;
             document.getElementById('analysis-content').innerHTML = marked.parse(data.documento.analise);
@@ -791,10 +803,6 @@
             closeModal('confirm-delete-modal');
             try {
                 const res = await fetch(`${API_URL}/api/documents/${pendingDeleteId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-                if (res.status === 403) {
-                    const data = await res.json();
-                    return notify(data.error || 'Ação bloqueada: verifique sua conta', 'error');
-                }
                 loadDocuments();
             } catch (err) { notify('Erro ao excluir', 'error'); }
         }
