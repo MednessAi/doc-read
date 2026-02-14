@@ -192,8 +192,7 @@
                 </button>
             </header>
 
-            <div id="doc-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                </div>
+            <div id="doc-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
         </main>
     </div>
 
@@ -218,9 +217,9 @@
                 </div>
             </div>
 
-            <div id="checkout-container" class="hidden mb-12 bg-slate-50 p-6 rounded-[2.5rem] border border-slate-200">
-                <div id="checkout"></div>
-                <button onclick="cancelCheckout()" class="w-full mt-4 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors">Cancelar e escolher outro</button>
+            <div id="checkout-container" class="hidden mb-12 bg-slate-50 p-10 rounded-[2.5rem] border border-slate-200">
+                <div id="checkout-element"></div>
+                <button onclick="cancelCheckout()" class="w-full mt-8 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-red-500 transition-colors">Cancelar e escolher outro plano</button>
             </div>
 
             <div id="plans-grid" class="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -231,7 +230,6 @@
                     </div>
                     <ul class="space-y-4 mb-10 flex-1">
                         <li class="flex items-center gap-3 text-sm font-semibold text-slate-600"><svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg> 2 exames/mês</li>
-                        <li class="flex items-center gap-3 text-sm font-semibold text-slate-600"><svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg> Histórico básico</li>
                     </ul>
                     <button id="btn-plan-0" class="w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-slate-200 text-slate-500 cursor-not-allowed">Plano Atual</button>
                 </div>
@@ -245,7 +243,6 @@
                     </div>
                     <ul class="space-y-4 mb-10 flex-1">
                         <li class="flex items-center gap-3 text-sm font-bold text-slate-700"><svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg> 10 exames/mês</li>
-                        <li class="flex items-center gap-3 text-sm font-bold text-slate-700"><svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg> IA Médica avançada</li>
                     </ul>
                     <button onclick="handleSubscription(1)" id="btn-plan-1" class="w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-blue-600 text-white shadow-lg hover:bg-blue-700 hover:scale-105 transition-all">Começar agora</button>
                 </div>
@@ -258,7 +255,6 @@
                     </div>
                     <ul class="space-y-4 mb-10 flex-1">
                         <li class="flex items-center gap-3 text-sm font-bold text-slate-300"><svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg> Exames ilimitados</li>
-                        <li class="flex items-center gap-3 text-sm font-bold text-slate-300"><svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg> Suporte Prioritário</li>
                     </ul>
                     <button onclick="handleSubscription(2)" id="btn-plan-2" class="w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-white text-slate-900 hover:scale-105 transition-all">Assinar Pro</button>
                 </div>
@@ -354,6 +350,9 @@
 
     <script>
         const API_URL = 'https://doc-interpret-926187447831.europe-west1.run.app';
+        // SUA CHAVE PÚBLICA DO STRIPE
+        const STRIPE_PUBLIC_KEY = 'pk_test_51SwTKe9JbbIHrSR1EC127ttxDqR0HBkTNR0wuTxWolqvIS3eadY4rPHPfRMi1A4JZHePfgxVoElKS0Iy2yx8hX1200LiqJrUKw';
+
         let token = localStorage.getItem('token');
         let isLogin = true;
         let selectedFiles = [];
@@ -386,12 +385,13 @@
 
         if (token) showDashboard();
 
-        // Lógica de Assinatura com Stripe
+        // --- LÓGICA DE ASSINATURA STRIPE ---
         async function handleSubscription(planLevel) {
             const interval = currentBilling === 'anual' ? 'year' : 'month';
             
             try {
-                notify('Iniciando transação...', 'info');
+                notify('A preparar pagamento...', 'info');
+                
                 const res = await fetch(`${API_URL}/api/subscription/subscribe`, {
                     method: 'POST',
                     headers: { 
@@ -405,40 +405,50 @@
 
                 if (!res.ok) throw new Error(data.error || 'Erro ao processar assinatura');
 
-                // Caso 1: Upgrade imediato (sem checkout)
+                // CASO 1: Upgrade Direto (Já tem assinatura ativa de nível diferente)
                 if (data.subscription_plan) {
                     notify(data.message, 'success');
-                    openPlansModal(); // Atualiza a interface dos botões
+                    setTimeout(() => location.reload(), 2000);
                     return;
                 }
 
-                // Caso 2: Abrir Embedded Checkout
+                // CASO 2: Abrir Checkout Embarcado
                 if (data.clientSecret) {
-                    // Inicializar Stripe se ainda não existir (Insira sua chave pública aqui se necessário, 
-                    // mas o Stripe geralmente identifica pelo clientSecret em modo embedded)
-                    if (!stripeInstance) stripeInstance = Stripe('mk_1SwTKf9JbbIHrSR1hoanaxT5'); // O backend deve prover a PK ou você a insere aqui
+                    // Inicializa o Stripe se necessário
+                    if (!stripeInstance) stripeInstance = Stripe(STRIPE_PUBLIC_KEY);
                     
+                    // Prepara interface
                     document.getElementById('plans-grid').classList.add('hidden');
                     document.getElementById('checkout-container').classList.remove('hidden');
-                    
+                    document.getElementById('checkout-element').innerHTML = ''; // Limpa anterior
+
+                    // Cria e monta o checkout
                     embeddedCheckout = await stripeInstance.initEmbeddedCheckout({
                         clientSecret: data.clientSecret,
                     });
                     
-                    embeddedCheckout.mount('#checkout');
+                    embeddedCheckout.mount('#checkout-element');
+                } else {
+                    throw new Error("Erro de comunicação: Segredo de checkout não recebido.");
                 }
 
             } catch (err) {
+                console.error("Erro Stripe:", err);
                 notify(err.message, 'error');
             }
         }
 
         function cancelCheckout() {
-            if (embeddedCheckout) embeddedCheckout.unmount();
+            if (embeddedCheckout) {
+                embeddedCheckout.unmount();
+                embeddedCheckout.destroy();
+                embeddedCheckout = null;
+            }
             document.getElementById('checkout-container').classList.add('hidden');
             document.getElementById('plans-grid').classList.remove('hidden');
         }
 
+        // --- LÓGICA DE AUTENTICAÇÃO ---
         function toggleAuthMode() {
             isLogin = !isLogin;
             document.getElementById('auth-title').innerText = isLogin ? 'Doc Interpret' : 'Crie sua conta';
@@ -458,90 +468,21 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password })
                 });
-                
                 const data = await res.json();
-                
                 if (res.ok) {
                     if (data.token) {
                         token = data.token;
                         localStorage.setItem('token', token);
                         localStorage.setItem('userEmail', email);
-                        if (!isLogin) notify('Conta criada com sucesso!', 'success');
                         showDashboard();
                     } else {
-                        isLogin = true; 
-                        toggleAuthMode(); 
-                        notify('Conta criada! Por favor, faça login.', 'success');
+                        isLogin = true; toggleAuthMode(); notify('Conta criada! Faça login.', 'success');
                     }
-                } else {
-                    notify(data.error || 'Erro na autenticação', 'error');
-                }
-            } catch (err) { 
-                notify('Erro de conexão com o servidor', 'error'); 
-            }
+                } else notify(data.error || 'Erro na autenticação', 'error');
+            } catch (err) { notify('Erro de conexão', 'error'); }
         }
 
-        function startQRLoginFlow() {
-            document.getElementById('login-form').classList.add('hidden');
-            document.getElementById('qr-display-area').classList.remove('hidden');
-            const uuid = crypto.randomUUID();
-            document.getElementById('qrcode').innerHTML = "";
-            new QRCode(document.getElementById("qrcode"), { text: uuid, width: 180, height: 180, colorDark: "#0f172a" });
-            if (eventSource) eventSource.close();
-            eventSource = new EventSource(`${API_URL}/api/auth/login-qr/stream?uuid=${uuid}`);
-            eventSource.addEventListener('login', (e) => {
-                const data = JSON.parse(e.data);
-                localStorage.setItem('token', data.token);
-                localStorage.setItem('userEmail', data.email || 'Usuário');
-                location.reload(); 
-            });
-        }
-
-        function cancelQRLogin() {
-            if (eventSource) eventSource.close();
-            document.getElementById('login-form').classList.remove('hidden');
-            document.getElementById('qr-display-area').classList.add('hidden');
-        }
-
-        function toggleBilling() {
-            const toggle = document.getElementById('period-selector');
-            currentBilling = currentBilling === 'anual' ? 'mensal' : 'anual';
-            toggle.classList.toggle('mensal', currentBilling === 'mensal');
-            document.getElementById('price-basic').innerText = currentBilling === 'anual' ? 'R$ 29' : 'R$ 39';
-            document.getElementById('price-pro').innerText = currentBilling === 'anual' ? 'R$ 59' : 'R$ 79';
-            // Se o checkout estiver aberto, cancelamos para o usuário re-selecionar com o preço novo
-            cancelCheckout();
-        }
-
-        async function openPlansModal() {
-            try {
-                const res = await fetch(`${API_URL}/api/subscription`, { headers: { 'Authorization': `Bearer ${token}` } });
-                const data = await res.json();
-                
-                if (res.status === 403) {
-                    return notify(data.error || 'Faça a verificação da sua conta pelo email antes de continuar', 'error');
-                }
-
-                const rank = data.subscription_plan || 0;
-                [0, 1, 2].forEach(level => {
-                    const btn = document.getElementById(`btn-plan-${level}`);
-                    if (!btn) return;
-                    if (level === rank) {
-                        btn.disabled = true; btn.innerText = "Plano Atual";
-                        btn.className = "w-full py-5 rounded-2xl font-black text-[10px] uppercase bg-slate-100 text-slate-400 cursor-not-allowed";
-                        btn.onclick = null;
-                    } else {
-                        btn.disabled = false; 
-                        btn.innerText = level < rank ? "Downgrade" : (level === 0 ? "Selecionar" : "Assinar");
-                        btn.className = level === 2 ? "w-full py-5 rounded-2xl font-black text-[10px] uppercase bg-white text-slate-900 hover:scale-105 transition-all" : "w-full py-5 rounded-2xl font-black text-[10px] uppercase bg-blue-600 text-white shadow-lg hover:bg-blue-700 hover:scale-105 transition-all";
-                        if(level !== 0) btn.onclick = () => handleSubscription(level);
-                    }
-                });
-                cancelCheckout();
-                openModal('plans-modal');
-            } catch (err) { notify('Erro ao carregar planos', 'error'); }
-        }
-
+        // --- DASHBOARD E LISTAGEM ---
         function showDashboard() {
             document.getElementById('auth-screen').classList.add('hidden');
             document.getElementById('dashboard').classList.remove('hidden');
@@ -553,18 +494,9 @@
             try {
                 const res = await fetch(`${API_URL}/api/documents`, { headers: { 'Authorization': `Bearer ${token}` } });
                 const data = await res.json();
-                
-                if (res.status === 403) {
-                    notify(data.error || 'Faça a verificação da sua conta pelo email antes de continuar', 'error');
-                    return;
-                }
-
                 const list = document.getElementById('doc-list');
-                list.innerHTML = data.documentos?.map(doc => renderCardHTML(doc)).join('') || `<div class="col-span-full py-20 text-center text-slate-400">Nenhum exame.</div>`;
-                
-                data.documentos?.forEach(doc => {
-                    if(doc.is_pending_analysis) startPhraseCycle(doc.id);
-                });
+                list.innerHTML = data.documentos?.map(doc => renderCardHTML(doc)).join('') || `<div class="col-span-full py-20 text-center text-slate-400">Nenhum exame encontrado.</div>`;
+                data.documentos?.forEach(doc => { if(doc.is_pending_analysis) startPhraseCycle(doc.id); });
             } catch (e) { notify('Erro ao carregar documentos', 'error'); }
         }
 
@@ -587,13 +519,7 @@
         }
 
         function renderPendingState() {
-            return `
-                <div class="space-y-3">
-                    <div class="flex items-center justify-center gap-3 py-4 bg-blue-50/50 text-blue-600 rounded-2xl">
-                        <div class="loader"></div>
-                        <span class="phrase-text text-[9px] font-black uppercase tracking-widest animate-pulse">Iniciando análise...</span>
-                    </div>
-                </div>`;
+            return `<div class="flex items-center justify-center gap-3 py-4 bg-blue-50/50 text-blue-600 rounded-2xl"><div class="loader"></div><span class="phrase-text text-[9px] font-black uppercase tracking-widest animate-pulse">Iniciando análise...</span></div>`;
         }
 
         function startPhraseCycle(docId) {
@@ -602,33 +528,24 @@
             const phraseEl = card.querySelector('.phrase-text');
             let i = 0;
             const interval = setInterval(() => {
-                if (!document.getElementById(`doc-${docId}`) || !card.querySelector('.loader')) {
-                    clearInterval(interval);
-                    return;
-                }
+                if (!document.getElementById(`doc-${docId}`) || !card.querySelector('.loader')) { clearInterval(interval); return; }
                 if (phraseEl) phraseEl.innerText = loadingPhrases[i % loadingPhrases.length];
                 i++;
             }, 3000);
         }
 
+        // --- UPLOAD E PROCESSAMENTO ---
         async function processDocument() {
             const name = document.getElementById('new-doc-name').value;
             const btn = document.getElementById('start-ia-btn');
-            
-            if (!name || selectedFiles.length === 0) {
-                return notify('Preencha o nome e anexe pelo menos uma imagem', 'error');
-            }
+            if (!name || selectedFiles.length === 0) return notify('Preencha o nome e anexe imagens', 'error');
 
-            btn.disabled = true;
-            btn.innerText = "Convertendo...";
+            btn.disabled = true; btn.innerText = "Processando...";
             
             try {
                 const b64s = await Promise.all(selectedFiles.map(file => {
-                    return new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onload = () => resolve(reader.result.split(',')[1]);
-                        reader.onerror = reject;
-                        reader.readAsDataURL(file);
+                    return new Promise((resolve) => {
+                        const r = new FileReader(); r.onload = () => resolve(r.result.split(',')[1]); r.readAsDataURL(file);
                     });
                 }));
 
@@ -638,19 +555,16 @@
                     body: JSON.stringify({ images: b64s, nome: name })
                 });
 
-                if (response.status === 403) {
+                if (!response.ok) {
                     const errorData = await response.json();
-                    notify(errorData.error || 'Faça a verificação da sua conta pelo email antes de continuar', 'error');
-                    btn.disabled = false;
-                    btn.innerText = "Analisar com IA";
-                    return;
+                    throw new Error(errorData.error || 'Erro no servidor');
                 }
 
                 closeModal('upload-modal');
-                notify('Iniciando processamento...', 'info');
-                
+                notify('Exame enviado para análise!', 'success');
                 loadDocuments();
 
+                // Stream para feedback em tempo real
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 while (true) {
@@ -661,41 +575,68 @@
                         if (line.startsWith('data:')) { 
                             try {
                                 const data = JSON.parse(line.slice(5).trim()); 
-                                if (data.status === 'completed') {
-                                    notify('Análise concluída!', 'success');
-                                    updateCardToFinished(data.document_id);
-                                } 
+                                if (data.status === 'completed') updateCardToFinished(data.document_id);
                             } catch(e) {}
                         } 
                     }
                 }
-            } catch (err) { 
-                notify('Erro ao processar o envio', 'error'); 
-                loadDocuments(); 
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "Analisar com IA";
-            }
+            } catch (err) { notify(err.message, 'error'); } finally { btn.disabled = false; btn.innerText = "Analisar com IA"; }
         }
 
         function updateCardToFinished(docId) {
             const container = document.getElementById(`btn-container-${docId}`);
-            const card = document.getElementById(`doc-${docId}`);
             if (container) {
-                card.classList.remove('shimmer');
-                container.innerHTML = `<button onclick="viewAnalysis('${docId}')" class="w-full bg-slate-900 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg scale-90 animate-in zoom-in fill-mode-forwards">Ver Relatório IA</button>`;
-                setTimeout(() => container.firstChild.classList.remove('scale-90'), 50);
-            } else {
-                loadDocuments();
+                document.getElementById(`doc-${docId}`).classList.remove('shimmer');
+                container.innerHTML = `<button onclick="viewAnalysis('${docId}')" class="w-full bg-slate-900 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg animate-in zoom-in">Ver Relatório IA</button>`;
             }
         }
 
+        // --- INTERFACE E MODAIS ---
+        function toggleBilling() {
+            currentBilling = currentBilling === 'anual' ? 'mensal' : 'anual';
+            document.getElementById('period-selector').classList.toggle('mensal', currentBilling === 'mensal');
+            document.getElementById('price-basic').innerText = currentBilling === 'anual' ? 'R$ 29' : 'R$ 39';
+            document.getElementById('price-pro').innerText = currentBilling === 'anual' ? 'R$ 59' : 'R$ 79';
+            cancelCheckout();
+        }
+
+        async function openPlansModal() {
+            try {
+                const res = await fetch(`${API_URL}/api/subscription`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const data = await res.json();
+                const rank = data.subscription_plan || 0;
+                [0, 1, 2].forEach(level => {
+                    const btn = document.getElementById(`btn-plan-${level}`);
+                    if (!btn) return;
+                    if (level === rank) {
+                        btn.disabled = true; btn.innerText = "Plano Atual";
+                        btn.className = "w-full py-5 rounded-2xl font-black text-[10px] uppercase bg-slate-100 text-slate-400 cursor-not-allowed";
+                    } else {
+                        btn.disabled = false; btn.innerText = level < rank ? "Downgrade" : "Selecionar";
+                        btn.onclick = (level === 0) ? null : () => handleSubscription(level);
+                    }
+                });
+                cancelCheckout();
+                openModal('plans-modal');
+            } catch (err) { notify('Erro ao carregar planos', 'error'); }
+        }
+
+        async function viewAnalysis(id) {
+            const res = await fetch(`${API_URL}/api/documents/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const data = await res.json();
+            currentAnalysisRawText = data.documento.analise;
+            document.getElementById('analysis-title').innerText = data.documento.nome;
+            document.getElementById('analysis-content').innerHTML = marked.parse(data.documento.analise);
+            openModal('analysis-modal');
+        }
+
+        // --- CÂMERA E QR CODE ---
         async function openInAppCamera() {
             openModal('camera-modal');
             try {
                 cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                 document.getElementById('camera-video').srcObject = cameraStream;
-            } catch (err) { closeCamera(); }
+            } catch (err) { notify('Câmera não permitida', 'error'); closeCamera(); }
         }
 
         function takeSnapshot() {
@@ -710,14 +651,11 @@
             }, 'image/jpeg', 0.85);
         }
 
-        function cancelCameraSession() { closeCamera(); }
         function closeCamera() { if (cameraStream) cameraStream.getTracks().forEach(t => t.stop()); closeModal('camera-modal'); }
-        
+
         function handleFileSelect(e) { 
-            const files = Array.from(e.target.files);
-            files.forEach(f => selectedFiles.push(f)); 
-            renderPreviews(); 
-            e.target.value = ""; 
+            Array.from(e.target.files).forEach(f => selectedFiles.push(f)); 
+            renderPreviews(); e.target.value = ""; 
         }
 
         function renderPreviews() {
@@ -728,19 +666,13 @@
                 const rd = new FileReader();
                 const div = document.createElement('div');
                 div.className = "preview-item";
-                rd.onload = (e) => { 
-                    div.innerHTML = `<img src="${e.target.result}"><div class="remove-img" onclick="removeImage(${index})">&times;</div>`; 
-                };
+                rd.onload = (e) => { div.innerHTML = `<img src="${e.target.result}"><div class="remove-img" onclick="removeImage(${index})">&times;</div>`; };
                 rd.readAsDataURL(file);
                 area.appendChild(div);
             });
         }
 
-        function removeImage(index) { 
-            selectedFiles.splice(index, 1); 
-            renderPreviews(); 
-            document.getElementById('photo-count').innerText = selectedFiles.length; 
-        }
+        function removeImage(index) { selectedFiles.splice(index, 1); renderPreviews(); document.getElementById('photo-count').innerText = selectedFiles.length; }
 
         function openScanner() {
             openModal('scanner-modal');
@@ -748,58 +680,48 @@
             html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (txt) => { authorizeOtherDevice(txt); closeScanner(); });
         }
 
+        function closeScanner() { if (html5QrCode) html5QrCode.stop().finally(() => closeModal('scanner-modal')); else closeModal('scanner-modal'); }
+
         async function authorizeOtherDevice(uuid) {
             const res = await fetch(`${API_URL}/api/auth/login-via-qr`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ uuid }) });
             const data = await res.json();
             notify(data.message || data.error, res.ok ? 'success' : 'error');
         }
 
-        function closeScanner() { if (html5QrCode) html5QrCode.stop().finally(() => closeModal('scanner-modal')); else closeModal('scanner-modal'); }
-
-        async function viewAnalysis(id) {
-            const res = await fetch(`${API_URL}/api/documents/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
-            const data = await res.json();
-            
-            if (res.status === 403) {
-                return notify(data.error || 'Verifique sua conta antes de visualizar a análise', 'error');
-            }
-
-            currentAnalysisRawText = data.documento.analise;
-            document.getElementById('analysis-title').innerText = data.documento.nome;
-            document.getElementById('analysis-content').innerHTML = marked.parse(data.documento.analise);
-            openModal('analysis-modal');
+        function startQRLoginFlow() {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('qr-display-area').classList.remove('hidden');
+            const uuid = crypto.randomUUID();
+            document.getElementById('qrcode').innerHTML = "";
+            new QRCode(document.getElementById("qrcode"), { text: uuid, width: 180, height: 180 });
+            if (eventSource) eventSource.close();
+            eventSource = new EventSource(`${API_URL}/api/auth/login-qr/stream?uuid=${uuid}`);
+            eventSource.addEventListener('login', (e) => {
+                const data = JSON.parse(e.data);
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('userEmail', data.email);
+                location.reload(); 
+            });
         }
 
-        function copyAnalysisText() {
-            if (currentAnalysisRawText) navigator.clipboard.writeText(currentAnalysisRawText).then(() => notify('Copiado!', 'success'));
-        }
+        function cancelQRLogin() { if (eventSource) eventSource.close(); document.getElementById('login-form').classList.remove('hidden'); document.getElementById('qr-display-area').classList.add('hidden'); }
 
         function requestDelete(id) { pendingDeleteId = id; openModal('confirm-delete-modal'); }
         async function performDelete() {
             closeModal('confirm-delete-modal');
             try {
-                const res = await fetch(`${API_URL}/api/documents/${pendingDeleteId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-                if (res.status === 403) {
-                    const data = await res.json();
-                    return notify(data.error || 'Ação bloqueada: verifique sua conta', 'error');
-                }
+                await fetch(`${API_URL}/api/documents/${pendingDeleteId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
                 loadDocuments();
             } catch (err) { notify('Erro ao excluir', 'error'); }
         }
         document.getElementById('confirm-delete-btn').onclick = performDelete;
 
+        function copyAnalysisText() { if (currentAnalysisRawText) navigator.clipboard.writeText(currentAnalysisRawText).then(() => notify('Copiado!', 'success')); }
         function toggleProfileMenu() { document.getElementById('profile-menu').classList.toggle('hidden-scale'); }
-        function openUploadModal() { 
-            document.getElementById('new-doc-name').value = ''; 
-            selectedFiles = []; 
-            document.getElementById('photo-count').innerText = 0;
-            renderPreviews(); 
-            openModal('upload-modal'); 
-        }
+        function openUploadModal() { document.getElementById('new-doc-name').value = ''; selectedFiles = []; document.getElementById('photo-count').innerText = 0; renderPreviews(); openModal('upload-modal'); }
         function openModal(id) { document.getElementById(id).classList.remove('opacity-0', 'pointer-events-none'); }
         function closeModal(id) { document.getElementById(id).classList.add('opacity-0', 'pointer-events-none'); }
         function logout() { localStorage.clear(); location.reload(); }
-
         window.onclick = function(e) { if (!e.target.closest('nav')) document.getElementById('profile-menu').classList.add('hidden-scale'); }
     </script>
 </body>
